@@ -1,0 +1,12 @@
+{
+  "name": "@finsights-ai/design-tokens",
+  "version": "1.0.0",
+  "description": "shared design tokens and styles for the @finsights-ai app and landingpage",
+  "license": "ISC",
+  "author": "Christian Kozalla",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
