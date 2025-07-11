@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -95,6 +96,45 @@ func (c *Client) GetEODData(ticker string, from, to string) ([]EODData, error) {
 	var result []EODData
 	err := c.get(endpoint, params, &result)
 	return result, err
+}
+
+// Fundamentals is a wrapper over raw fundamentals data
+type Fundamentals struct {
+	raw map[string]any
+}
+
+// GetFloat returns a float64 from a "::" path like "Earnings::History::2023-12-31::epsActual"
+func (f *Fundamentals) GetFloat(path string) float64 {
+	keys := strings.Split(path, "::")
+	current := f.raw
+
+	for i, key := range keys {
+		if i == len(keys)-1 {
+			if val, ok := current[key].(float64); ok {
+				return val
+			}
+			return 0
+		}
+
+		next, ok := current[key].(map[string]any)
+		if !ok {
+			return 0
+		}
+		current = next
+	}
+	return 0
+}
+
+func (c *Client) GetFundamentalsRaw(ticker string) (*Fundamentals, error) {
+	endpoint := fmt.Sprintf("fundamentals/%s", ticker)
+	params := url.Values{}
+
+	var raw map[string]interface{}
+	if err := c.get(endpoint, params, &raw); err != nil {
+		return nil, err
+	}
+
+	return &Fundamentals{raw: raw}, nil
 }
 
 // SearchResult represents a single search result
