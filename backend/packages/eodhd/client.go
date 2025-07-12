@@ -125,11 +125,35 @@ func (f *Fundamentals) GetFloat(path string) float64 {
 	return 0
 }
 
+// GetLatestPeriod finds the most recent date (YYYY-MM-DD) available under a nested path.
+func (f *Fundamentals) GetLatestPeriod(path string) string {
+	keys := strings.Split(path, "::")
+	current := f.raw
+
+	// Traverse down to map of date keys
+	for _, key := range keys {
+		next, ok := current[key].(map[string]any)
+		if !ok {
+			return ""
+		}
+		current = next
+	}
+
+	// Find the latest date key
+	var latest string
+	for k := range current {
+		if k > latest {
+			latest = k
+		}
+	}
+	return latest
+}
+
 func (c *Client) GetFundamentalsRaw(ticker string) (*Fundamentals, error) {
 	endpoint := fmt.Sprintf("fundamentals/%s", ticker)
 	params := url.Values{}
 
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := c.get(endpoint, params, &raw); err != nil {
 		return nil, err
 	}
@@ -213,6 +237,27 @@ func (c *Client) GetFundamentalsGeneral(ticker string) (FundamentalsGeneral, err
 	params.Set("filter", "General")
 
 	var result FundamentalsGeneral
+	err := c.get(endpoint, params, &result)
+	return result, err
+}
+
+type Dividend struct {
+	Date     string  `json:"date"`
+	Value    float64 `json:"value"`
+	Currency string  `json:"currency"`
+}
+
+func (c *Client) GetDividends(ticker string, from, to string) ([]Dividend, error) {
+	endpoint := fmt.Sprintf("div/%s", ticker)
+	params := url.Values{}
+	if from != "" {
+		params.Set("from", from)
+	}
+	if to != "" {
+		params.Set("to", to)
+	}
+
+	var result []Dividend
 	err := c.get(endpoint, params, &result)
 	return result, err
 }

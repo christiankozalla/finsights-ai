@@ -16,3 +16,8 @@ CREATE TABLE IF NOT EXISTS prices (
   sma200 REAL,
   PRIMARY KEY (ticker, date)
 );
+
+ALTER TABLE fundamentals ADD COLUMN dividend_yield REAL;
+ALTER TABLE fundamentals ADD COLUMN dividend_growth_5y REAL;
+ALTER TABLE fundamentals ADD COLUMN intrinsic_value REAL;
+ALTER TABLE fundamentals ADD COLUMN margin_of_safety REAL;

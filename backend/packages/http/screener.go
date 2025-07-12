@@ -180,7 +180,7 @@ func (h *ScreenerHandler) GetScreenerData(w http.ResponseWriter, r *http.Request
 		Offset:  offset,
 	}
 
-	// Call EODHD API
+	// TODO: Use custom screener in package screener
 	results, err := h.client.ScreenStocks(filter)
 	if err != nil {
 		log.Printf("Error calling ScreenStocks: %v", err)
