@@ -1,12 +1,16 @@
 # HTTP Screener API
 
-This package provides HTTP endpoints for the stock screener functionality using the EODHD API.
+This package provides HTTP endpoints for the stock screener functionality using a custom SQLite-based screener instead of the EODHD screener API.
+
+## Overview
+
+The screener API has been refactored to use a custom database-backed implementation that provides more flexibility and control over stock screening criteria. The API maintains backward compatibility with the JSON array filter format while adding support for new financial metrics.
 
 ## Endpoints
 
 ### GET /api/screener
 
-Returns paginated stock screener results based on specified filters and sorting criteria.
+Returns paginated stock screening results based on specified filters and sorting criteria.
 
 #### Query Parameters
 
@@ -14,84 +18,61 @@ Returns paginated stock screener results based on specified filters and sorting 
 |-----------|------|---------|-------------|
 | `page` | integer | 1 | Page number (1-based) |
 | `limit` | integer | 50 | Number of results per page (1-1000) |
-| `filters` | string | `[["market_capitalization",">",1000000]]` | Filter criteria (JSON array format) |
-| `sort` | string | `market_capitalization.desc` | Sort criteria |
+| `filters` | string | `[["pe_ratio","<",20]]` | Filter criteria (JSON array format) |
+| `sort` | string | `pe_ratio.asc` | Sort criteria |
+
+#### Available Fields for Filtering
+
+**Fundamental Metrics:**
+- `pe_ratio` - Price-to-earnings ratio
+- `roe` - Return on equity
+- `dividend_yield` - Dividend yield percentage
+- `dividend_growth_5y` - 5-year dividend growth rate
+- `intrinsic_value` - Calculated intrinsic value
+- `margin_of_safety` - Margin of safety percentage
+- `earnings_outlook` - Earnings outlook (positive, negative, neutral, stable)
+- `ticker` - Stock ticker symbol
+
+**Price Metrics:**
+- `close` - Current closing price
+- `sma50` - 50-day simple moving average
+- `sma200` - 200-day simple moving average
+
+**Special Computed Fields:**
+- `price_vs_sma50` - Price relative to SMA50 (use `< 1.0` for below SMA)
+- `price_vs_sma200` - Price relative to SMA200 (use `< 1.0` for below SMA)
+- `intrinsic_vs_price` - Intrinsic value relative to price (use `> 1.0` for undervalued)
 
 #### Filter Examples
 
-1. 🇩🇪 Large Cap German Stocks on XETRA
-```go
-eodhd.ScreenerFilter{
-	Filters: `[["exchange","=","XETRA"],["market_capitalization",">",20000000000]]`,
-	Sort:    "market_capitalization.desc",
-	Limit:   20,
-	Offset:  0,
-}
-```
-2. 🇺🇸 Tech Stocks in US with Dividend Yield
-```go
-eodhd.ScreenerFilter{
-	Filters: `[["exchange","=","US"],["sector","=","Technology"],["dividend_yield",">",0.01]]`,
-	Sort:    "dividend_yield.desc",
-	Limit:   25,
-	Offset:  0,
-}
-3. 🇪🇺 European Energy Companies with Positive EPS
-```go
-eodhd.ScreenerFilter{
-	Filters: `[["sector","=","Energy"],["earnings_share",">",0],["exchange","=","F"]]`,
-	Sort:    "earnings_share.desc",
-	Limit:   15,
-	Offset:  0,
-}
+**Basic Filters:**
+```json
+[["pe_ratio","<",15]]
+[["roe",">",0.15]]
+[["dividend_yield",">",0.03]]
+[["margin_of_safety",">",0.20]]
 ```
 
-4. 📉 Low Cap Stocks with High 5-Day Returns
-```go
-eodhd.ScreenerFilter{
-	Filters: `[["market_capitalization","<",100000000],["refund_5d_p",">",10]]`,
-	Sort:    "refund_5d_p.desc",
-	Limit:   10,
-	Offset:  0,
-}
-```
-5. 🟢 High Volume ETFs in Europe
-```go
-eodhd.ScreenerFilter{
-	Filters: `[["exchange","=","F"],["type","=","etf"],["avgvol_200d",">",50000]]`,
-	Sort:    "avgvol_200d.desc",
-	Limit:   10,
-	Offset:  0,
-}
-```
-6. 🏦 Financial Sector Stocks in Germany
-```go
-eodhd.ScreenerFilter{
-	Filters: `[["exchange","=","XETRA"],["sector","=","Financial Services"]]`,
-	Sort:    "market_capitalization.desc",
-	Limit:   10,
-	Offset:  0,
-}
-```
-7. 🔎 Stocks with Positive Book Value Signal
-```go
-eodhd.ScreenerFilter{
-	Filters: `[["exchange","=","US"]]`,
-	Sort:    "market_capitalization.desc",
-	Limit:   20,
-	Offset:  0,
-}
+**Complex Filters:**
+```json
+[["pe_ratio","<",15],["roe",">",0.15]]
+[["dividend_yield",">",0.03],["dividend_growth_5y",">",0.05]]
+[["price_vs_sma200","<",1.0],["pe_ratio","<",12]]
 ```
 
-Add signals=bookvalue_pos as a URL parameter in future if needed — that can be an extra field in ScreenerFilter.
+**Earnings Outlook Filter:**
+```json
+[["earnings_outlook","=","positive"]]
+```
 
-#### Sort Examples
+#### Sort Options
 
-- `market_capitalization.desc` - Sort by market cap descending
-- `dividend_yield.asc` - Sort by dividend yield ascending
-- `earnings_share.desc` - Sort by earnings per share descending
-- `avgvol_200d.desc` - Sort by 200-day average volume descending
-- `refund_5d_p.desc` - Sort by 5-day return percentage descending
+- `pe_ratio.asc` / `pe_ratio.desc` - Sort by P/E ratio
+- `roe.asc` / `roe.desc` - Sort by return on equity
+- `close.asc` / `close.desc` - Sort by closing price
+- `dividend_yield.asc` / `dividend_yield.desc` - Sort by dividend yield
+- `margin_of_safety.asc` / `margin_of_safety.desc` - Sort by margin of safety
+- `ticker.asc` / `ticker.desc` - Sort by ticker symbol
 
 #### Response Format
 
@@ -99,15 +80,17 @@ Add signals=bookvalue_pos as a URL parameter in future if needed — that can be
 {
   "data": [
     {
-      "code": "AAPL",
-      "name": "Apple Inc.",
-      "exchange": "NASDAQ",
-      "market_capitalization": 3000000000000,
+      "ticker": "AAPL",
+      "pe_ratio": 14.5,
+      "roe": 0.25,
+      "close": 150.25,
+      "sma50": 145.80,
+      "sma200": 140.30,
+      "earnings_outlook": "positive",
       "dividend_yield": 0.005,
-      "earnings_share": 6.05,
-      "sector": "Technology",
-      "industry": "Consumer Electronics",
-      "adjusted_close": 150.25
+      "dividend_growth_5y": 0.08,
+      "intrinsic_value": 180.50,
+      "margin_of_safety": 0.25
     }
   ],
   "page": 1,
@@ -132,40 +115,42 @@ Add signals=bookvalue_pos as a URL parameter in future if needed — that can be
 # Get first page with default settings
 curl "http://localhost:8080/api/screener"
 
-# Get second page with 10 results per page
-curl "http://localhost:8080/api/screener?page=2&limit=10"
+# Value stocks: Low P/E and high ROE
+curl "http://localhost:8080/api/screener?filters=%5B%5B%22pe_ratio%22%2C%22%3C%22%2C15%5D%2C%5B%22roe%22%2C%22%3E%22%2C0.15%5D%5D"
 
-# Filter by XETRA exchange with market cap > 10B (URL encoded)
-curl "http://localhost:8080/api/screener?filters=%5B%5B%22exchange%22%2C%22%3D%22%2C%22XETRA%22%5D%2C%5B%22market_capitalization%22%2C%22%3E%22%2C10000000000%5D%5D"
+# Dividend stocks: Good yield and growth
+curl "http://localhost:8080/api/screener?filters=%5B%5B%22dividend_yield%22%2C%22%3E%22%2C0.03%5D%2C%5B%22dividend_growth_5y%22%2C%22%3E%22%2C0.05%5D%5D"
 
-# Filter by US Technology sector with dividend yield > 1% (URL encoded)
-curl "http://localhost:8080/api/screener?filters=%5B%5B%22exchange%22%2C%22%3D%22%2C%22US%22%5D%2C%5B%22sector%22%2C%22%3D%22%2C%22Technology%22%5D%2C%5B%22dividend_yield%22%2C%22%3E%22%2C0.01%5D%5D"
+# Undervalued stocks: High margin of safety
+curl "http://localhost:8080/api/screener?filters=%5B%5B%22margin_of_safety%22%2C%22%3E%22%2C0.20%5D%5D"
 
-# Filter by Energy sector with positive earnings (URL encoded)
-curl "http://localhost:8080/api/screener?filters=%5B%5B%22sector%22%2C%22%3D%22%2C%22Energy%22%5D%2C%5B%22earnings_share%22%2C%22%3E%22%2C0%5D%5D"
+# Bargain stocks: Low P/E and below 200-day moving average
+curl "http://localhost:8080/api/screener?filters=%5B%5B%22pe_ratio%22%2C%22%3C%22%2C10%5D%2C%5B%22price_vs_sma200%22%2C%22%3C%22%2C1%5D%5D"
 
-# Filter ETFs with high trading volume (URL encoded)
-curl "http://localhost:8080/api/screener?filters=%5B%5B%22type%22%2C%22%3D%22%2C%22etf%22%5D%2C%5B%22avgvol_200d%22%2C%22%3E%22%2C50000%5D%5D"
+# Growth stocks: High ROE and positive outlook
+curl "http://localhost:8080/api/screener?filters=%5B%5B%22roe%22%2C%22%3E%22%2C0.20%5D%2C%5B%22earnings_outlook%22%2C%22%3D%22%2C%22positive%22%5D%5D"
 
-# Simple examples (unencoded for readability - encode before use)
-# XETRA high cap: [["exchange","=","XETRA"],["market_capitalization",">",10000000000]]
-# US Tech dividend: [["exchange","=","US"],["sector","=","Technology"],["dividend_yield",">",0.01]]
-# Energy earnings: [["sector","=","Energy"],["earnings_share",">",0]]
-# Small cap returns: [["market_capitalization","<",100000000],["refund_5d_p",">",10]]
-# ETF high volume: [["type","=","etf"],["avgvol_200d",">",50000]]
+# Sort by margin of safety descending
+curl "http://localhost:8080/api/screener?sort=margin_of_safety.desc"
+```
 
-# Sort by dividend yield ascending
-curl "http://localhost:8080/api/screener?sort=dividend_yield.asc"
+#### Unencoded Filter Examples (URL encode before use)
+```
+Value stocks: [["pe_ratio","<",15],["roe",">",0.15]]
+Dividend stocks: [["dividend_yield",">",0.03],["dividend_growth_5y",">",0.05]]
+Undervalued stocks: [["margin_of_safety",">",0.20]]
+Growth stocks: [["roe",">",0.20],["earnings_outlook","=","positive"]]
+Bargain stocks: [["pe_ratio","<",10],["price_vs_sma200","<",1.0]]
 ```
 
 #### HTTP Status Codes
 
 - `200 OK` - Success
-- `400 Bad Request` - Invalid parameters
+- `400 Bad Request` - Invalid parameters or filter format
 - `405 Method Not Allowed` - Non-GET request
-- `500 Internal Server Error` - Server or API error
+- `500 Internal Server Error` - Database or server error
 
-## FilterBuilder Usage
+## FilterBuilder Usage (Go)
 
 The package includes a `FilterBuilder` helper for constructing filter queries programmatically:
 
@@ -178,57 +163,126 @@ import (
 )
 
 func main() {
-    // Build a filter for US Technology stocks with dividend yield > 1%
+    // Build a filter for value stocks
     builder := http.NewFilterBuilder()
     filterStr, err := builder.
-        Exchange("US").
-        Sector("Technology").
-        DividendYieldGreaterThan(0.01).
+        PELessThan(15).
+        ROEGreaterThan(0.15).
         Build()
-
+    
     if err != nil {
         log.Fatal(err)
     }
-
+    
     fmt.Println(filterStr)
-    // Output: [["exchange","=","US"],["sector","=","Technology"],["dividend_yield",">",0.01]]
+    // Output: [["pe_ratio","<",15],["roe",">",0.15]]
 }
 ```
 
 **Available FilterBuilder Methods:**
-- `Exchange(exchange string)` - Filter by exchange
-- `MarketCapGreaterThan(value float64)` - Market cap greater than
-- `MarketCapLessThan(value float64)` - Market cap less than
-- `Sector(sector string)` - Filter by sector
+- `PELessThan(value float64)` - P/E ratio less than value
+- `PEGreaterThan(value float64)` - P/E ratio greater than value
+- `ROEGreaterThan(value float64)` - ROE greater than value
+- `ROELessThan(value float64)` - ROE less than value
 - `DividendYieldGreaterThan(value float64)` - Dividend yield greater than
-- `EarningsShareGreaterThan(value float64)` - Earnings per share greater than
-- `Type(assetType string)` - Filter by asset type
-- `AvgVolume200DGreaterThan(value float64)` - 200-day average volume greater than
-- `Return5DGreaterThan(value float64)` - 5-day return percentage greater than
-- `AddFilter(field, operator string, value any)` - Add custom filter
+- `MarginOfSafetyGreaterThan(value float64)` - Margin of safety greater than
+- `PriceBelowSMA50()` - Price below 50-day moving average
+- `PriceBelowSMA200()` - Price below 200-day moving average
+- `EarningsOutlook(outlook string)` - Filter by earnings outlook
+- `Ticker(ticker string)` - Filter by specific ticker
+- `AddFilter(field, operator string, value interface{})` - Add custom filter
 
-## Usage
+## Screener Package Integration
+
+The HTTP handler integrates with the `screener` package which provides:
+
+### Database Schema
+
+```sql
+CREATE TABLE fundamentals (
+  ticker TEXT PRIMARY KEY,
+  pe_ratio REAL,
+  roe REAL,
+  earnings_outlook TEXT,
+  dividend_yield REAL,
+  dividend_growth_5y REAL,
+  intrinsic_value REAL,
+  margin_of_safety REAL
+);
+
+CREATE TABLE prices (
+  ticker TEXT,
+  date TEXT,
+  close REAL,
+  sma50 REAL,
+  sma200 REAL,
+  PRIMARY KEY (ticker, date)
+);
+```
+
+### Screener FilterBuilder (Go)
+
+```go
+import "github.com/finsights-ai/backend/packages/screener"
+
+// Create complex filters using the screener package
+builder := screener.NewFilterBuilder()
+filter := builder.
+    PELessThan(15).
+    ROEGreaterThan(0.15).
+    DividendYieldGreaterThan(0.02).
+    MarginOfSafetyGreaterThan(0.20).
+    BuildWithPagination("pe_ratio.asc", 25, 0)
+
+results, err := screener.ScreenStocks(db, filter)
+```
+
+### Preset Filters
+
+The screener package includes predefined filter presets:
+
+- **ValueStocks** - Low P/E, high ROE stocks
+- **DividendStocks** - High dividend yield and growth
+- **UndervaluedStocks** - High margin of safety
+- **GrowthStocks** - High ROE with positive outlook
+- **BargainStocks** - Low P/E stocks below 200-day MA
+
+## Setup and Usage
 
 ```go
 package main
 
 import (
-    "github.com/finsights-ai/backend/packages/eodhd"
+    "database/sql"
     "github.com/finsights-ai/backend/packages/http"
+    _ "github.com/mattn/go-sqlite3"
 )
 
 func main() {
-    client, err := eodhd.NewClient("your-api-key", "./cache")
+    // Open database
+    db, err := sql.Open("sqlite3", "./screener.db")
     if err != nil {
         log.Fatal(err)
     }
-
-    handler := http.NewScreenerHandler(client)
+    defer db.Close()
+    
+    // Create screener client
+    screenerClient := http.NewDatabaseScreenerClient(db)
+    
+    // Create handler
+    handler := http.NewScreenerHandler(screenerClient)
+    
+    // Setup routes
     http.HandleFunc("/api/screener", handler.GetScreenerData)
-
+    
+    // Start server
     log.Fatal(http.ListenAndServe(":8080", nil))
 }
 ```
+
+## Environment Variables
+
+- `DATABASE_PATH` - Path to SQLite database file (default: "./screener.db")
 
 ## Testing
 
@@ -236,11 +290,32 @@ Run the tests with:
 
 ```bash
 go test ./packages/http/...
+go test ./packages/screener/...
 ```
 
 The test suite includes:
 - Parameter validation
 - Pagination logic
+- Filter parsing and validation
+- SQL query generation
 - Error handling
 - Method restrictions
 - Response format validation
+- Database integration tests
+
+## Migration from EODHD Screener
+
+The new implementation maintains API compatibility while replacing the external EODHD screener with a custom database solution:
+
+**Key Changes:**
+- Filters now operate on local database fields
+- New financial metrics available (intrinsic value, margin of safety)
+- Better performance with local data
+- More flexible filtering capabilities
+- Custom computed fields for technical analysis
+
+**Backward Compatibility:**
+- Same JSON array filter format
+- Same pagination parameters
+- Same response structure
+- Same HTTP endpoints

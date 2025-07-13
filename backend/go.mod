@@ -2,7 +2,10 @@ module github.com/finsights-ai/backend
 
 go 1.24.4
 
-require github.com/dgraph-io/badger/v4 v4.7.0
+require (
+	github.com/dgraph-io/badger/v4 v4.7.0
+	github.com/mattn/go-sqlite3 v1.14.28
+)
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

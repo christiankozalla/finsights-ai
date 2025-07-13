@@ -182,43 +182,6 @@ func (c *Client) SearchStocks(query string, limit int) ([]SearchResult, error) {
 	return results, err
 }
 
-// Screener
-type ScreenerResult struct {
-	Code               string  `json:"code"`
-	Name               string  `json:"name"`
-	Exchange           string  `json:"exchange"`
-	MarketCap          float64 `json:"market_capitalization"`
-	DividendYield      float64 `json:"dividend_yield"`
-	EarningsShare      float64 `json:"earnings_share"`
-	Sector             string  `json:"sector"`
-	Industry           string  `json:"industry"`
-	AdjustedClosePrice float64 `json:"adjusted_close"`
-}
-
-// ScreenerFilter allows for filtering
-type ScreenerFilter struct {
-	Filters string
-	Sort    string
-	Limit   int
-	Offset  int
-}
-
-// ScreenStocks executes a market screener query
-func (c *Client) ScreenStocks(filter ScreenerFilter) ([]ScreenerResult, error) {
-	endpoint := "screener"
-	params := url.Values{}
-	params.Set("filters", filter.Filters)
-	params.Set("sort", filter.Sort)
-	params.Set("limit", fmt.Sprintf("%d", filter.Limit))
-	params.Set("offset", fmt.Sprintf("%d", filter.Offset))
-
-	var response struct {
-		Data []ScreenerResult `json:"data"`
-	}
-	err := c.get(endpoint, params, &response)
-	return response.Data, err
-}
-
 // Stock Details
 type FundamentalsGeneral struct {
 	Code        string `json:"Code"`

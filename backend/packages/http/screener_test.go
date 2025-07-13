@@ -7,15 +7,15 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/finsights-ai/backend/packages/eodhd"
+	"github.com/finsights-ai/backend/packages/screener"
 )
 
-// MockClient implements a mock EODHD client for testing
-type MockClient struct {
-	screenStocksFunc func(filter eodhd.ScreenerFilter) ([]eodhd.ScreenerResult, error)
+// MockScreenerClient implements a mock screener client for testing
+type MockScreenerClient struct {
+	screenStocksFunc func(filter screener.ScreenerFilter) ([]screener.ScreenerResult, error)
 }
 
-func (m *MockClient) ScreenStocks(filter eodhd.ScreenerFilter) ([]eodhd.ScreenerResult, error) {
+func (m *MockScreenerClient) ScreenStocks(filter screener.ScreenerFilter) ([]screener.ScreenerResult, error) {
 	if m.screenStocksFunc != nil {
 		return m.screenStocksFunc(filter)
 	}
@@ -24,35 +24,39 @@ func (m *MockClient) ScreenStocks(filter eodhd.ScreenerFilter) ([]eodhd.Screener
 
 func TestGetScreenerData(t *testing.T) {
 	// Mock data
-	mockResults := []eodhd.ScreenerResult{
+	mockResults := []screener.ScreenerResult{
 		{
-			Code:               "AAPL",
-			Name:               "Apple Inc.",
-			Exchange:           "NASDAQ",
-			MarketCap:          3000000000000,
-			DividendYield:      0.005,
-			EarningsShare:      6.05,
-			Sector:             "Technology",
-			Industry:           "Consumer Electronics",
-			AdjustedClosePrice: 150.25,
+			Ticker:           "AAPL",
+			PE:               25.5,
+			ROE:              0.25,
+			Close:            150.25,
+			SMA50:            145.80,
+			SMA200:           140.30,
+			EarningsOutlook:  "positive",
+			DividendYield:    0.005,
+			DividendGrowth5Y: 0.08,
+			IntrinsicValue:   180.50,
+			MarginOfSafety:   0.167,
 		},
 		{
-			Code:               "GOOGL",
-			Name:               "Alphabet Inc.",
-			Exchange:           "NASDAQ",
-			MarketCap:          1800000000000,
-			DividendYield:      0.0,
-			EarningsShare:      5.61,
-			Sector:             "Technology",
-			Industry:           "Internet Content & Information",
-			AdjustedClosePrice: 2750.80,
+			Ticker:           "GOOGL",
+			PE:               22.1,
+			ROE:              0.18,
+			Close:            2750.80,
+			SMA50:            2720.50,
+			SMA200:           2680.20,
+			EarningsOutlook:  "positive",
+			DividendYield:    0.0,
+			DividendGrowth5Y: 0.0,
+			IntrinsicValue:   3100.00,
+			MarginOfSafety:   0.113,
 		},
 	}
 
 	tests := []struct {
 		name            string
 		queryParams     url.Values
-		mockFunc        func(filter eodhd.ScreenerFilter) ([]eodhd.ScreenerResult, error)
+		mockFunc        func(filter screener.ScreenerFilter) ([]screener.ScreenerResult, error)
 		expectedStatus  int
 		expectedPage    int
 		expectedLimit   int
@@ -61,7 +65,7 @@ func TestGetScreenerData(t *testing.T) {
 		{
 			name:        "successful request with default params",
 			queryParams: url.Values{},
-			mockFunc: func(filter eodhd.ScreenerFilter) ([]eodhd.ScreenerResult, error) {
+			mockFunc: func(filter screener.ScreenerFilter) ([]screener.ScreenerResult, error) {
 				return mockResults, nil
 			},
 			expectedStatus:  http.StatusOK,
@@ -75,18 +79,20 @@ func TestGetScreenerData(t *testing.T) {
 				"page":  {"2"},
 				"limit": {"1"},
 			},
-			mockFunc: func(filter eodhd.ScreenerFilter) ([]eodhd.ScreenerResult, error) {
+			mockFunc: func(filter screener.ScreenerFilter) ([]screener.ScreenerResult, error) {
 				// Return 2 results to test hasMore logic
-				return append(mockResults, eodhd.ScreenerResult{
-					Code:               "MSFT",
-					Name:               "Microsoft Corporation",
-					Exchange:           "NASDAQ",
-					MarketCap:          2800000000000,
-					DividendYield:      0.007,
-					EarningsShare:      8.05,
-					Sector:             "Technology",
-					Industry:           "Software",
-					AdjustedClosePrice: 330.59,
+				return append(mockResults, screener.ScreenerResult{
+					Ticker:           "MSFT",
+					PE:               28.5,
+					ROE:              0.22,
+					Close:            330.59,
+					SMA50:            325.20,
+					SMA200:           315.80,
+					EarningsOutlook:  "positive",
+					DividendYield:    0.007,
+					DividendGrowth5Y: 0.12,
+					IntrinsicValue:   375.00,
+					MarginOfSafety:   0.134,
 				}), nil
 			},
 			expectedStatus:  http.StatusOK,
@@ -97,17 +103,17 @@ func TestGetScreenerData(t *testing.T) {
 		{
 			name: "successful request with custom filters and sort",
 			queryParams: url.Values{
-				"filters": {`[["market_capitalization",">",1000000000]]`},
-				"sort":    {"market_capitalization.asc"},
+				"filters": {`[["pe_ratio","<",30],["roe",">",0.15]]`},
+				"sort":    {"pe_ratio.asc"},
 				"limit":   {"10"},
 			},
-			mockFunc: func(filter eodhd.ScreenerFilter) ([]eodhd.ScreenerResult, error) {
+			mockFunc: func(filter screener.ScreenerFilter) ([]screener.ScreenerResult, error) {
 				// Verify filter parameters
-				if filter.Filters != `[["market_capitalization",">",1000000000]]` {
-					t.Errorf("Expected filters to be %q, got %s", `[["market_capitalization",">",1000000000]]`, filter.Filters)
+				if len(filter.Conditions) != 2 {
+					t.Errorf("Expected 2 filter conditions, got %d", len(filter.Conditions))
 				}
-				if filter.Sort != "market_capitalization.asc" {
-					t.Errorf("Expected sort to be 'market_capitalization.asc', got %s", filter.Sort)
+				if filter.Sort != "pe_ratio.asc" {
+					t.Errorf("Expected sort to be 'pe_ratio.asc', got %s", filter.Sort)
 				}
 				if filter.Limit != 11 { // +1 for hasMore check
 					t.Errorf("Expected limit to be 11, got %d", filter.Limit)
@@ -140,12 +146,19 @@ func TestGetScreenerData(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
+		{
+			name: "invalid filter JSON",
+			queryParams: url.Values{
+				"filters": {"invalid json"},
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup mock client
-			mockClient := &MockClient{
+			mockClient := &MockScreenerClient{
 				screenStocksFunc: tt.mockFunc,
 			}
 
@@ -213,7 +226,7 @@ func TestGetScreenerData(t *testing.T) {
 }
 
 func TestGetScreenerDataMethodNotAllowed(t *testing.T) {
-	mockClient := &MockClient{}
+	mockClient := &MockScreenerClient{}
 	handler := NewScreenerHandler(mockClient)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/screener", nil)
@@ -290,56 +303,63 @@ func TestFilterBuilder(t *testing.T) {
 		expected string
 	}{
 		{
-			name: "single filter",
+			name: "single PE filter",
 			buildFn: func(fb *FilterBuilder) *FilterBuilder {
-				return fb.Exchange("US")
+				return fb.PELessThan(20)
 			},
-			expected: `[["exchange","=","US"]]`,
+			expected: `[["pe_ratio","<",20]]`,
 		},
 		{
 			name: "multiple filters",
 			buildFn: func(fb *FilterBuilder) *FilterBuilder {
-				return fb.Exchange("US").Sector("Technology").MarketCapGreaterThan(1000000000)
+				return fb.PELessThan(15).ROEGreaterThan(0.15)
 			},
-			expected: `[["exchange","=","US"],["sector","=","Technology"],["market_capitalization",">",1000000000]]`,
+			expected: `[["pe_ratio","<",15],["roe",">",0.15]]`,
 		},
 		{
 			name: "dividend yield filter",
 			buildFn: func(fb *FilterBuilder) *FilterBuilder {
-				return fb.DividendYieldGreaterThan(0.02)
+				return fb.DividendYieldGreaterThan(0.03)
 			},
-			expected: `[["dividend_yield",">",0.02]]`,
+			expected: `[["dividend_yield",">",0.03]]`,
 		},
 		{
-			name: "earnings share filter",
+			name: "margin of safety filter",
 			buildFn: func(fb *FilterBuilder) *FilterBuilder {
-				return fb.EarningsShareGreaterThan(5.0)
+				return fb.MarginOfSafetyGreaterThan(0.20)
 			},
-			expected: `[["earnings_share",">",5]]`,
+			expected: `[["margin_of_safety",">",0.2]]`,
 		},
 		{
-			name: "ETF type filter",
+			name: "price below SMA filters",
 			buildFn: func(fb *FilterBuilder) *FilterBuilder {
-				return fb.Type("etf").AvgVolume200DGreaterThan(50000)
+				return fb.PriceBelowSMA50().PriceBelowSMA200()
 			},
-			expected: `[["type","=","etf"],["avgvol_200d",">",50000]]`,
+			expected: `[["price_vs_sma50","<",1],["price_vs_sma200","<",1]]`,
 		},
 		{
-			name: "custom filter",
+			name: "earnings outlook filter",
 			buildFn: func(fb *FilterBuilder) *FilterBuilder {
-				return fb.AddFilter("custom_field", ">=", 100)
+				return fb.EarningsOutlook("positive")
 			},
-			expected: `[["custom_field",">=",100]]`,
+			expected: `[["earnings_outlook","=","positive"]]`,
+		},
+		{
+			name: "ticker filter",
+			buildFn: func(fb *FilterBuilder) *FilterBuilder {
+				return fb.Ticker("AAPL")
+			},
+			expected: `[["ticker","=","AAPL"]]`,
 		},
 		{
 			name: "complex filter combination",
 			buildFn: func(fb *FilterBuilder) *FilterBuilder {
-				return fb.Exchange("XETRA").
-					MarketCapGreaterThan(10000000000).
-					DividendYieldGreaterThan(0.01).
-					Return5DGreaterThan(5.0)
+				return fb.PELessThan(15).
+					ROEGreaterThan(0.20).
+					DividendYieldGreaterThan(0.02).
+					MarginOfSafetyGreaterThan(0.15)
 			},
-			expected: `[["exchange","=","XETRA"],["market_capitalization",">",10000000000],["dividend_yield",">",0.01],["refund_5d_p",">",5]]`,
+			expected: `[["pe_ratio","<",15],["roe",">",0.2],["dividend_yield",">",0.02],["margin_of_safety",">",0.15]]`,
 		},
 	}
 
@@ -377,11 +397,11 @@ func TestExampleFilters(t *testing.T) {
 		name   string
 		filter string
 	}{
-		{"XETRAHighCap", ExampleFilters.XETRAHighCap},
-		{"USTechDividend", ExampleFilters.USTechDividend},
-		{"EnergyEarnings", ExampleFilters.EnergyEarnings},
-		{"SmallCapReturns", ExampleFilters.SmallCapReturns},
-		{"ETFHighVolume", ExampleFilters.ETFHighVolume},
+		{"ValueStocks", ExampleFilters.ValueStocks},
+		{"DividendStocks", ExampleFilters.DividendStocks},
+		{"UndervaluedStocks", ExampleFilters.UndervaluedStocks},
+		{"GrowthStocks", ExampleFilters.GrowthStocks},
+		{"BargainStocks", ExampleFilters.BargainStocks},
 	}
 
 	for _, tt := range tests {
@@ -398,6 +418,76 @@ func TestExampleFilters(t *testing.T) {
 				if len(filter) != 3 {
 					t.Errorf("Filter %s[%d] should have 3 elements, got %d", tt.name, i, len(filter))
 				}
+			}
+		})
+	}
+}
+
+func TestParseFilterFromJSON(t *testing.T) {
+	tests := []struct {
+		name           string
+		filterJSON     string
+		expectedLength int
+		expectError    bool
+	}{
+		{
+			name:           "empty filter",
+			filterJSON:     "",
+			expectedLength: 0,
+			expectError:    false,
+		},
+		{
+			name:           "single condition",
+			filterJSON:     `[["pe_ratio","<",20]]`,
+			expectedLength: 1,
+			expectError:    false,
+		},
+		{
+			name:           "multiple conditions",
+			filterJSON:     `[["pe_ratio","<",20],["roe",">",0.15]]`,
+			expectedLength: 2,
+			expectError:    false,
+		},
+		{
+			name:        "invalid JSON",
+			filterJSON:  `invalid json`,
+			expectError: true,
+		},
+		{
+			name:        "invalid condition format",
+			filterJSON:  `[["pe_ratio","<"]]`,
+			expectError: true,
+		},
+		{
+			name:        "non-string field",
+			filterJSON:  `[[123,"<",20]]`,
+			expectError: true,
+		},
+		{
+			name:        "non-string operator",
+			filterJSON:  `[["pe_ratio",123,20]]`,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filter, err := screener.ParseFilterFromJSON(tt.filterJSON)
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Expected no error but got: %v", err)
+				return
+			}
+
+			if len(filter.Conditions) != tt.expectedLength {
+				t.Errorf("Expected %d conditions, got %d", tt.expectedLength, len(filter.Conditions))
 			}
 		})
 	}

@@ -3,5 +3,6 @@ node_modules
 .env*
 
 backend/eodhd-cache
+backend/project_data
 
 NAMES.md
