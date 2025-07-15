@@ -334,7 +334,7 @@ export default function Screener() {
                       <input type="hidden" name="page" value="1" />
                       <button
                         type="submit"
-                        className={`w-full text-left p-3 rounded-lg border transition-colors hover:shadow-sm ${preset.color}`}
+                        className={`cursor-pointer w-full text-left p-3 rounded-lg border transition-colors hover:shadow-sm ${preset.color}`}
                       >
                         <div className="font-medium text-sm">{preset.name}</div>
                         <div className="text-xs opacity-75 mt-1">
@@ -504,7 +504,7 @@ export default function Screener() {
                       name="sort"
                       value={loaderData.sort}
                       onChange={(e) => e.target.form?.submit()}
-                      className="text-sm border border-gray-300 rounded-lg px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="text-gray-700 text-sm border border-gray-300 rounded-lg px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       {SORT_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -533,7 +533,7 @@ export default function Screener() {
                       name="limit"
                       value={loaderData.limit}
                       onChange={(e) => e.target.form?.submit()}
-                      className="text-sm border border-gray-300 rounded-lg px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="text-gray-700 text-sm border border-gray-300 rounded-lg px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="10">10</option>
                       <option value="25">25</option>
